@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<switchyard name="customer-service" 
+	targetNamespace="urn:com.example.switchyard:customer-service:0.0.1-SNAPSHOT" 
+	xmlns="urn:switchyard-config:switchyard:1.0"
+    xmlns:soap="urn:switchyard-component-soap:config:1.0"
+    xmlns:hornetq="urn:switchyard-component-hornetq:config:1.0"
+    xmlns:camel="urn:switchyard-component-camel:config:1.0"
+	xmlns:sca="http://docs.oasis-open.org/ns/opencsa/sca/200912">
+    <composite name="customer-service" targetNamespace="urn:com.example.switchyard:customer-service:0.0.1-SNAPSHOT" xmlns="http://docs.oasis-open.org/ns/opencsa/sca/200912">
+        <reference multiplicity="1..1" name="CustomerQueue" promote="CustomerServiceRouteBuilder/CustomerQueue">
+            <camel:binding.camel configURI="jms://customerQueue?connectionFactory=#ConnectionFactory"/>
+        </reference>
+        <reference multiplicity="1..1" name="CanonicalCustomerQueue" promote="CustomerServiceRouteBuilder/CanonicalCustomerQueue">
+	        <hornetq:binding.hornetq>
+	           <hornetq:config>
+	              <hornetq:connector>
+	                 <hornetq:factoryClass>org.hornetq.core.remoting.impl.invm.InVMConnectorFactory</hornetq:factoryClass>
+	              </hornetq:connector>
+	              <hornetq:queue>jms.queue.canonicalCustomerQueue</hornetq:queue>
+	           </hornetq:config>
+	        </hornetq:binding.hornetq>
+        </reference>
+	    <service name="StoreCanonicalService" promote="StoreCanonicalServiceRouteBuilder/StoreCanonicalService">
+            <!-- <camel:binding.camel configURI="jms://customerQueue?connectionFactory=#ConnectionFactory"/>  -->
+	        <camel:binding.camel configURI="jms://customerQueue?connectionFactory=%23JmsXA&amp;transactionManager=%23jtaTransactionManager&amp;transacted=true"/>
+	    </service>
+	    <service name="CustomerService" promote="CustomerServiceRouteBuilder/CustomerService">
+	        <soap:binding.soap>
+	            <soap:wsdl>CustomerService.wsdl</soap:wsdl>
+	            <soap:socketAddr>:9000</soap:socketAddr>        
+	         </soap:binding.soap>
+	    </service>
+        <component name="StoreCanonicalServiceRouteBuilder">
+           <reference name="CanonicalCustomerQueue" />
+        </component>
+        <component name="CustomerServiceRouteBuilder">
+           <reference name="CustomerQueue" />
+           <reference name="InToCanonical" />
+        </component>
+    </composite>
+    <transforms>
+    	<!-- cannot get this transform to be invoked -->
+        <transform.xslt xmlns="urn:switchyard-config:transform:1.0" from="{http://customerservice.example.com/}updateCustomer" to="{http://customerservice.example.com/}canonical" xsltFile="in-to-canonical.xslt" />
+    	<!-- hornetq binding will not accept a DOM message as input -->
+	    <transform.java xmlns="urn:switchyard-config:transform:1.0" class="com.example.switchyard.customer_service.HornetQTransformer" from="java:javax.xml.transform.dom.DOMSource" to="java:byte[]"/>
+    </transforms>
+</switchyard>

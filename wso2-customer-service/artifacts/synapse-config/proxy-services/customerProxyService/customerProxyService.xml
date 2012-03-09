@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<proxy xmlns="http://ws.apache.org/ns/synapse"
+    name="customerProxyService" statistics="disable" trace="disable" transports=" https , http ">
+    <target>
+        <inSequence>
+            <property action="set" name="OUT_ONLY" scope="default"
+                type="STRING" value="true"/>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** In sequence **"/>
+            </log>
+            <xslt key="in-to-canonical.xslt"/>
+            <log category="INFO" level="full" separator=","/>
+            <property action="remove" name="TRANSPORT_HEADERS" scope="axis2"/>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** Transport headers removed **"/>
+            </log>
+            <log category="INFO" level="full" separator=","/>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** Starting transaction **"/>
+            </log>
+            <transaction action="new"/>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** Out sequence **"/>
+            </log>
+            <log category="INFO" level="full" separator=","/>
+            <clone continueParent="true">
+                <target>
+                    <sequence>
+                        <xslt key="canonical-to-csv.xslt"/>
+                        <log category="INFO" level="custom" separator=",">
+                            <property name="text" value="** CSV **"/>
+                        </log>
+                        <log category="INFO" level="full" separator=","/>
+                        <send>
+                            <endpoint>
+                                <address statistics="disable"
+                                    trace="enable" uri="jms:/queue/CustomerServiceQueue?transport.jms.ConnectionFactory=default&amp;java.naming.factory.initial=org.jnp.interfaces.NamingContextFactory&amp;java.naming.provider.url=jnp://localhost:1099">
+                                    <timeout>
+                                    <duration>0</duration>
+                                    <action>discard</action>
+                                    </timeout>
+                                    <markForSuspension>
+                                    <retriesBeforeSuspension>0</retriesBeforeSuspension>
+                                    <retryDelay>0</retryDelay>
+                                    </markForSuspension>
+                                    <suspendOnFailure>
+                                    <initialDuration>0</initialDuration>
+                                    <maximumDuration>0</maximumDuration>
+                                    <progressionFactor>1.0</progressionFactor>
+                                    </suspendOnFailure>
+                                </address>
+                            </endpoint>
+                        </send>
+                    </sequence>
+                </target>
+            </clone>
+            <iterate attachPath="//customerList"
+                expression="//customerList/customer" preservePayload="true">
+                <target>
+                    <sequence>
+                        <log category="INFO" level="custom" separator=",">
+                            <property name="text" value="** Write to DB **"/>
+                        </log>
+                        <log category="INFO" level="full" separator=","/>
+                        <dbreport useTransaction="true">
+                            <connection>
+                                <pool>
+                                    <icClass>org.jnp.interfaces.NamingContextFactory</icClass>
+                                    <dsName>java:jdbc/PostgreSQLXA</dsName>
+                                    <url>localhost:1099</url>
+                                    <user>ipleval</user>
+                                    <password>ipleval</password>
+                                </pool>
+                            </connection>
+                            <statement>
+                                <sql>INSERT INTO CUSTOMER (ID, NAME) VALUES (to_number(?, 'FM9999'), ?)</sql>
+                                <parameter expression="//customer/id" type="VARCHAR"/>
+                                <parameter
+                                    expression="//customer/fullName" type="VARCHAR"/>
+                            </statement>
+                        </dbreport>
+                    </sequence>
+                </target>
+            </iterate>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** Committing transaction **"/>
+            </log>
+            <transaction action="commit"/>
+        </inSequence>
+        <faultSequence>
+            <log category="INFO" level="custom" separator=",">
+                <property name="text" value="** Rollback Transaction**"/>
+            </log>
+            <transaction action="rollback"/>
+            <send/>
+        </faultSequence>
+    </target>
+    <publishWSDL key="CustomerService.wsdl"/>
+</proxy>

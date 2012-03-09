@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<mule-configuration xmlns="http://www.mulesoft.com/tooling/messageflow">
+    <global-unknown entity-id="7c82843c-4c34-4be8-b1e4-12aa5929b775">
+        <content>&lt;spring:bean xmlns:spring=&quot;http://www.springframework.org/schema/beans&quot; id=&quot;pgXADataSource&quot; class=&quot;util.PGXADataSource&quot;&gt;
+		&lt;spring:property name=&quot;databaseName&quot; value=&quot;ipleval&quot;/&gt;
+		&lt;spring:property name=&quot;user&quot; value=&quot;ipleval&quot;/&gt;
+		&lt;spring:property name=&quot;password&quot; value=&quot;ipleval&quot;/&gt;
+	&lt;/spring:bean&gt;</content>
+    </global-unknown>
+    <global-unknown entity-id="ba3268ac-fd0b-48e4-9324-a2e0dd0c1f30">
+        <content>&lt;spring:bean xmlns:spring=&quot;http://www.springframework.org/schema/beans&quot; name=&quot;jmsConnectionFactory&quot; class=&quot;org.apache.activemq.ActiveMQXAConnectionFactory&quot;&gt;
+	    &lt;spring:property name=&quot;brokerURL&quot; value=&quot;vm://localhost?broker.persistent=true&amp;amp;broker.useJmx=false&quot;/&gt;
+	    &lt;spring:property name=&quot;redeliveryPolicy&quot;&gt;
+	        &lt;spring:bean class=&quot;org.apache.activemq.RedeliveryPolicy&quot;&gt;
+	            &lt;spring:property name=&quot;initialRedeliveryDelay&quot; value=&quot;20000&quot;/&gt;
+	            &lt;spring:property name=&quot;redeliveryDelay&quot; value=&quot;20000&quot;/&gt;
+	            &lt;spring:property name=&quot;maximumRedeliveries&quot; value=&quot;2&quot;/&gt;
+	       &lt;/spring:bean&gt;
+	    &lt;/spring:property&gt;
+	&lt;/spring:bean&gt;</content>
+    </global-unknown>
+    <global-unknown entity-id="a8611fce-de00-4e52-85c7-b44b2eeb2158">
+        <content>&lt;jbossts:transaction-manager xmlns:jbossts=&quot;http://www.mulesoft.org/schema/mule/jbossts&quot;&gt;
+		&lt;property xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot; key=&quot;com.arjuna.ats.arjuna.coordinator.defaultTimeout&quot; value=&quot;20&quot;/&gt;
+		&lt;property xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot; key=&quot;com.arjuna.ats.arjuna.coordinator.txReaperTimeout&quot; value=&quot;30000&quot;/&gt;
+	&lt;/jbossts:transaction-manager&gt;</content>
+    </global-unknown>
+    <global-element type="http://www.mulesoft.org/schema/mule/jms/activemq-xa-connector" name="Active MQ" entity-id="c620d133-9e05-4998-93f5-5772a84b17b8">
+        <properties>
+            <property value="jmsConnector" name="name"/>
+            <property name="specification"/>
+            <property name="username"/>
+            <property name="password"/>
+            <property name="jndiInitialFactory"/>
+            <property name="jndiProviderUrl"/>
+            <property name="connectionFactoryJndiName"/>
+            <property name="jndiProviderProperties-ref"/>
+            <property name="jndiDestinations"/>
+            <property name="forceJndiDestinations"/>
+            <property name="dispatcherPoolFactory-ref"/>
+            <property name="createMultipleTransactedReceivers"/>
+            <property value="1" name="numberOfConcurrentTransactedReceivers"/>
+            <property name="dynamicNotification"/>
+            <property name="validateConnections"/>
+            <property name="acknowledgementMode"/>
+            <property name="clientId"/>
+            <property value="2" name="maxRedelivery"/>
+            <property name="redeliveryHandlerFactory-ref"/>
+            <property name="numberOfConsumers"/>
+            <property value="jmsConnectionFactory" name="connectionFactory-ref"/>
+            <property name="durable"/>
+            <property name="noLocal"/>
+            <property value="true" name="persistentDelivery"/>
+            <property name="honorQosHeaders"/>
+            <property name="cacheJmsSessions"/>
+            <property name="eagerConsumer"/>
+            <property name="disableTemporaryReplyToDestinations"/>
+            <property name="embeddedMode"/>
+            <property name="brokerURL"/>
+            <property value="http://www.mulesoft.org/schema/mule/jms/activemq-xa-connector" name="org.mule.tooling.ui.modules.core.widgets.meta.ModeAttribute"/>
+        </properties>
+        <description>Global configuration for Active MQ connector</description>
+    </global-element>
+    <global-unknown entity-id="a9dff767-19bd-4f28-afc7-e4c2eb68e4eb">
+        <content>&lt;jdbc-ee:connector xmlns:jdbc-ee=&quot;http://www.mulesoft.org/schema/mule/ee/jdbc&quot; name=&quot;jdbcConnector&quot; pollingFrequency=&quot;10000&quot; dataSource-ref=&quot;pgXADataSource&quot;&gt;
+		&lt;jdbc:query xmlns:jdbc=&quot;http://www.mulesoft.org/schema/mule/jdbc&quot; key=&quot;outboundInsertStatement&quot; value=&quot;INSERT INTO CUSTOMER (ID, NAME) VALUES (to_number(#[xpath://customer/id], 'FM9999'),                      #[xpath://customer/fullName])&quot;/&gt;
+	&lt;/jdbc-ee:connector&gt;</content>
+    </global-unknown>
+    <global-unknown entity-id="ae5b3821-e08c-4fce-a494-9f0d657232bd">
+        <content>&lt;spring:bean xmlns:spring=&quot;http://www.springframework.org/schema/beans&quot; id=&quot;objectStore&quot; class=&quot;org.mule.util.store.SimpleMemoryObjectStore&quot;/&gt;</content>
+    </global-unknown>
+    <flow name="ProcessCustomersFlow">
+        <lane entity-id="cf41b0d6-414d-4275-88ee-44c82828d1ab">
+            <endpoint message-exchange-pattern="OneWay" direction="Inbound" type="http://www.mulesoft.org/schema/mule/jms/endpoint" name="JMS" entity-id="3addd5de-e336-427a-925a-072973fd8615">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="processCustomers.queue" name="queue"/>
+                    <property name="topic"/>
+                    <property name="address"/>
+                    <property name="mimeType"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="durableName"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="disableTemporaryReplyToDestinations"/>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Send or receive messages from a JMS queue</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="a10830f7-9529-4941-b044-b49229ce5570">
+                <properties>
+                    <property value="ProcessCustomersFlow entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.flowRef" name="Flow Reference" entity-id="490e02d2-7a6b-4ced-a3a6-b32faab07348">
+                <properties>
+                    <property value="PostToJMSFlow" name="name"/>
+                </properties>
+                <description>Executes a flow external to the current flow.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.splitter" name="Splitter" entity-id="032b7d9f-7c46-4e5f-b0ae-c9c7383330aa">
+                <properties>
+                    <property value="xpath" name="splitter.evaluator"/>
+                    <property value="/customerList/customer" name="splitter.expression"/>
+                </properties>
+                <description>Splits the payload based on an expression</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.flowRef" name="Flow Reference" entity-id="1a955d7a-4273-46b5-a3b5-7bc2cdd25909">
+                <properties>
+                    <property value="InsertToDBFlow" name="name"/>
+                </properties>
+                <description>Executes a flow external to the current flow.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="f440fd94-03f2-4ba4-9617-4e2bd43f3b60">
+                <properties>
+                    <property value="ProcessCustomersFlow completed" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <unknown entity-id="31bc0b03-ecf7-4d24-ba28-f5173fbdcb17">
+                <content>&lt;default-exception-strategy xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot;&gt;
+        	&lt;rollback-transaction exception-pattern=&quot;*&quot;/&gt;
+	    &lt;/default-exception-strategy&gt;</content>
+            </unknown>
+        </lane>
+    </flow>
+    <flow name="InsertToDBFlow">
+        <lane entity-id="4ef8e299-007e-408d-bb03-b2751fa2fbec">
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="cd158c91-dea8-4aee-985c-3214371b2754">
+                <properties>
+                    <property value="InsertToDBFlow entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="847ab4c1-c547-40e2-8785-c64c06e01025">
+                <properties>
+                    <property value="helloservice.Logger" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <endpoint message-exchange-pattern="OneWay" direction="Outbound" type="http://www.mulesoft.org/schema/mule/jdbc/endpoint" name="JDBC" entity-id="9dd35ca4-aa8c-4126-8017-5934d9d962ed">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="outboundInsertStatement" name="queryKey"/>
+                    <property name="address"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="mimeType"/>
+                    <property name="exchange-pattern"/>
+                    <property name="queryTimeout"/>
+                    <property name="pollingFrequency"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                    <property name="disableTransportTransformer"/>
+                </properties>
+                <description>JDBC Transport</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="bd11e63c-c2a7-4d10-a5fb-99e228cd48fe">
+                <properties>
+                    <property value="InsertToDBFlow completed" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+        </lane>
+    </flow>
+    <flow name="PostToJMSFlow">
+        <lane entity-id="cfd25892-9da9-4cc5-89cd-1089f4d2d9e8">
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="0e4b2cb8-ee25-4b40-9449-72a9c42371d7">
+                <properties>
+                    <property value="PostToJMSFlow entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="888e0c4c-e328-49f2-aba4-6d045fbf094c">
+                <properties>
+                    <property value="helloservice.Logger" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="1786485a-2be1-4bf4-a76f-6062f6284d8b">
+                <properties>
+                    <property value="helloservice.CSVProducer" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="1d1065b7-d90c-4edf-ab2a-80004f1c7695">
+                <properties>
+                    <property value="helloservice.Logger" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <endpoint message-exchange-pattern="OneWay" direction="Outbound" type="http://www.mulesoft.org/schema/mule/jms/endpoint" name="JMS" entity-id="a55bfd42-c43d-4436-be8a-c71493fb330e">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="customerIds.queue" name="queue"/>
+                    <property name="topic"/>
+                    <property name="address"/>
+                    <property name="mimeType"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="durableName"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="disableTemporaryReplyToDestinations"/>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Send or receive messages from a JMS queue</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="305a3231-c9c5-44e1-b502-ed4e9f64429c">
+                <properties>
+                    <property value="PostToJMSFlow completed" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.scriptTransformer" name="Script" entity-id="a6394879-cdac-4025-a382-4880dd0eeaf9">
+                <properties>
+                    <property value="restorePayload" name="name"/>
+                    <property name="returnClass"/>
+                    <property name="ignoreBadInput"/>
+                    <property name="encoding"/>
+                    <property name="mimeType"/>
+                    <property-collection name="@http://www.mulesoft.org/schema/mule/scripting/script;0">
+                        <property value="groovy" name="engine"/>
+                    </property-collection>
+                </properties>
+                <description>Defines a script component backed by a JSR-223 compliant script engine such as Groovy, JavaScript, or Ruby.</description>
+            </pattern>
+        </lane>
+    </flow>
+    <flow name="MainFlow">
+        <lane entity-id="296c2956-2dec-44fa-ade4-a8c773cb2982">
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="f970e787-82e6-4d49-836a-bfa16f463b78">
+                <properties>
+                    <property value="MainFlow entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <unknown entity-id="3b4e68d4-2103-44d9-82e6-5ac23058730f">
+                <content>&lt;log-component xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot;/&gt;</content>
+            </unknown>
+            <endpoint message-exchange-pattern="OneWay" direction="Outbound" type="http://www.mulesoft.org/schema/mule/jms/endpoint" name="JMS" entity-id="15fa49da-46fb-40f0-92ef-173ac2657972">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="processCustomers.queue" name="queue"/>
+                    <property name="topic"/>
+                    <property name="address"/>
+                    <property name="mimeType"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="durableName"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="disableTemporaryReplyToDestinations"/>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Send or receive messages from a JMS queue</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="f64df91c-b479-4811-ab61-6cf0247f5d1f">
+                <properties>
+                    <property value="MainFlow completed" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+        </lane>
+    </flow>
+    <flow name="HttpProxyService">
+        <lane entity-id="1cd7e936-10fa-4c01-86f0-d0113816f4f6">
+            <endpoint message-exchange-pattern="OneWay" direction="Inbound" type="http://www.mulesoft.org/schema/mule/core/endpoint" name="Generic" entity-id="520eca0e-924e-4c1a-b08e-7662669a2ace">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="http://localhost:6789" name="address"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="mimeType"/>
+                    <property value="request-response" name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Generic endpoint specified by address URI</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="fbedb54a-0b63-4107-bc3d-db5a907ef8b8">
+                <properties>
+                    <property value="HttpProxyService entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="http://www.mulesoft.org/schema/mule/core/object-to-string-transformer" name="Object-to-String" entity-id="6d4b0487-46e0-462f-9db4-63461305b4b8">
+                <properties>
+                    <property name="name"/>
+                    <property name="returnClass"/>
+                    <property name="ignoreBadInput"/>
+                    <property name="encoding"/>
+                    <property name="mimeType"/>
+                </properties>
+                <description>A transformer that gives a human-readable description of various types (useful for debugging).</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="9521a3db-49b7-4c52-97ea-a33a078bba57">
+                <properties>
+                    <property value="helloservice.Logger" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <unknown entity-id="53e8b446-eb87-4921-acc9-873733b46de0">
+                <content>&lt;wire-tap xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot;&gt;
+			&lt;processor-chain&gt;
+				&lt;message-property-filter pattern=&quot;http.method=POST&quot; scope=&quot;inbound&quot;/&gt;
+				&lt;mulexml:xslt-transformer xmlns:mulexml=&quot;http://www.mulesoft.org/schema/mule/xml&quot; name=&quot;incomingToCanonical&quot; xmlns:doc=&quot;http://www.mulesoft.org/schema/mule/documentation&quot; doc:name=&quot;XSLT Transformer&quot; doc:description=&quot;Transform XML using XSLT&quot;&gt;
+					&lt;mulexml:xslt-text&gt;
+						&lt;xsl:stylesheet xmlns:xsl=&quot;http://www.w3.org/1999/XSL/Transform&quot; xmlns:cus=&quot;http://customerservice.example.com/&quot; version=&quot;2.0&quot;&gt;
+							&lt;xsl:output method=&quot;xml&quot;/&gt;
+							&lt;xsl:template match=&quot;cus:updateCustomer&quot;&gt;
+								&lt;xsl:element name=&quot;customerList&quot;&gt;
+									&lt;xsl:apply-templates select=&quot;customer&quot;/&gt;
+								&lt;/xsl:element&gt;
+							&lt;/xsl:template&gt;
+							&lt;xsl:template match=&quot;customer&quot;&gt;
+								&lt;xsl:element name=&quot;customer&quot;&gt;
+									&lt;xsl:element name=&quot;id&quot;&gt;
+										&lt;xsl:value-of select=&quot;customerId&quot;/&gt;
+									&lt;/xsl:element&gt;
+									&lt;xsl:element name=&quot;fullName&quot;&gt;
+										&lt;xsl:value-of select=&quot;name&quot;/&gt;
+									&lt;/xsl:element&gt;
+									&lt;xsl:element name=&quot;postalAddress&quot;&gt;
+										&lt;xsl:value-of select=&quot;address&quot;/&gt;
+									&lt;/xsl:element&gt;
+								&lt;/xsl:element&gt;
+							&lt;/xsl:template&gt;
+						&lt;/xsl:stylesheet&gt;
+					&lt;/mulexml:xslt-text&gt;
+				&lt;/mulexml:xslt-transformer&gt;
+				&lt;byte-array-to-string-transformer/&gt;
+				&lt;flow-ref name=&quot;MainFlow&quot;/&gt;
+			&lt;/processor-chain&gt;
+		&lt;/wire-tap&gt;</content>
+            </unknown>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="603dfd62-f061-487b-b91c-08bd3bec44cc">
+                <properties>
+                    <property value="HttpProxyService after wiretap" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <endpoint message-exchange-pattern="OneWay" direction="Outbound" type="http://www.mulesoft.org/schema/mule/core/endpoint" name="Generic" entity-id="5bdcdab8-08fc-4ca9-9de5-9f917d40fa36">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="http://localhost:6788#[header:INBOUND:http.request]" name="address"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="mimeType"/>
+                    <property value="request-response" name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Generic endpoint specified by address URI</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="71238a50-c8e4-43cd-8c5f-9d460c211cfa">
+                <properties>
+                    <property value="HttpProxyService after WebService" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <unknown entity-id="5f0df1e0-de83-4ab5-8cf3-a367c5ac99b3">
+                <content>&lt;log-component xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot;/&gt;</content>
+            </unknown>
+        </lane>
+    </flow>
+    <flow name="WebService">
+        <lane entity-id="ae4378ef-9152-4f09-ba5d-0079a816181a">
+            <endpoint message-exchange-pattern="OneWay" direction="Inbound" type="http://www.mulesoft.org/schema/mule/core/endpoint" name="Generic" entity-id="3636ee4f-9c91-4cd0-bbbb-120652d56450">
+                <properties>
+                    <property value="one-way" name="exchange-pattern"/>
+                    <property value="http://localhost:6788/services/CustomerWS" name="address"/>
+                    <property name="responseTimeout"/>
+                    <property name="encoding"/>
+                    <property name="disableTransportTransformer"/>
+                    <property name="mimeType"/>
+                    <property name="exchange-pattern"/>
+                    <property name="connector-ref"/>
+                    <property name="transformer-refs"/>
+                    <property name="responseTransformer-refs"/>
+                </properties>
+                <description>Generic endpoint specified by address URI</description>
+            </endpoint>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="1d6ec13e-8a41-4421-a960-dfb541ba4d9b">
+                <properties>
+                    <property value="WebService entered" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.component" name="Component" entity-id="59eebfac-3aa5-423c-875d-6dea7f0c94ff">
+                <properties>
+                    <property value="helloservice.CustomerServiceImpl" name="class.name"/>
+                    <property value="false" name="component.singleton"/>
+                </properties>
+                <description>Invoke a Java component</description>
+            </pattern>
+            <pattern type="org.mule.tooling.ui.modules.core.pattern.logger" name="Logger" entity-id="cce680da-3456-445a-9e66-51379d682cea">
+                <properties>
+                    <property value="WebService completed" name="logger.message"/>
+                    <property value="INFO" name="logger.level"/>
+                </properties>
+                <description>Performs logging using an expression that determines what should be logged.</description>
+            </pattern>
+            <unknown entity-id="3cca749d-bea1-4d64-bcb9-599a8207bc44">
+                <content>&lt;log-component xmlns=&quot;http://www.mulesoft.org/schema/mule/core&quot;/&gt;</content>
+            </unknown>
+        </lane>
+    </flow>
+</mule-configuration>

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:core="http://www.mulesoft.org/schema/mule/core"
+	xmlns:vm="http://www.mulesoft.org/schema/mule/vm" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:mulexml="http://www.mulesoft.org/schema/mule/xml" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf" xmlns:jbossts="http://www.mulesoft.org/schema/mule/jbossts"
+	xmlns:jdbc="http://www.mulesoft.org/schema/mule/jdbc" xmlns:jdbc-ee="http://www.mulesoft.org/schema/mule/ee/jdbc"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms" xmlns:script="http://www.mulesoft.org/schema/mule/scripting"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/xml http://www.mulesoft.org/schema/mule/xml/3.2/mule-xml.xsd 
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/3.2/mule-cxf.xsd 
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/3.2/mule.xsd
+http://www.mulesoft.org/schema/mule/jbossts http://www.mulesoft.org/schema/mule/jbossts/3.2/mule-jbossts.xsd  
+http://www.mulesoft.org/schema/mule/jdbc http://www.mulesoft.org/schema/mule/jdbc/3.2/mule-jdbc.xsd  
+http://www.mulesoft.org/schema/mule/ee/jdbc http://www.mulesoft.org/schema/mule/ee/jdbc/3.2/mule-jdbc-ee.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/3.2/mule-jms.xsd  
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/3.2/mule-scripting.xsd  
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/3.2/mule-vm.xsd ">
+
+	<spring:bean id="pgXADataSource" class="util.PGXADataSource">
+		<spring:property name="databaseName" value="ipleval" />
+		<spring:property name="user" value="ipleval" />
+		<spring:property name="password" value="ipleval" />
+	</spring:bean>
+
+	<spring:bean name="jmsConnectionFactory"
+	     class="org.apache.activemq.ActiveMQXAConnectionFactory">
+	    <spring:property name="brokerURL"  
+	              value="vm://localhost?broker.persistent=true&amp;broker.useJmx=false"/>
+	    <spring:property name="redeliveryPolicy">
+	        <spring:bean class="org.apache.activemq.RedeliveryPolicy">
+	            <spring:property name="initialRedeliveryDelay" 
+	                      value="20000"/>
+	            <spring:property name="redeliveryDelay" 
+	                      value="20000"/>
+	            <spring:property name="maximumRedeliveries" 
+	                      value="2"/>
+	       </spring:bean>
+	    </spring:property>
+	</spring:bean>    
+
+	<jbossts:transaction-manager>
+		<property key="com.arjuna.ats.arjuna.coordinator.defaultTimeout" value="20" />
+		<property key="com.arjuna.ats.arjuna.coordinator.txReaperTimeout" value="30000" />
+	</jbossts:transaction-manager>
+
+    <jms:activemq-xa-connector name="jmsConnector" connectionFactory-ref="jmsConnectionFactory" persistentDelivery="true" maxRedelivery="2" numberOfConcurrentTransactedReceivers="1" />    
+
+	<jdbc-ee:connector name="jdbcConnector"
+		pollingFrequency="10000" dataSource-ref="pgXADataSource">
+		<jdbc:query key="outboundInsertStatement"
+			value="INSERT INTO CUSTOMER (ID, NAME) VALUES (to_number(#[xpath://customer/id], 'FM9999'), 
+                    #[xpath://customer/fullName])" />
+	</jdbc-ee:connector>
+
+	<spring:bean id="objectStore"
+		class="org.mule.util.store.SimpleMemoryObjectStore" />
+
+	<flow name="ProcessCustomersFlow">
+		<jms:inbound-endpoint queue="processCustomers.queue" exchange-pattern="one-way">
+			<xa-transaction action="ALWAYS_BEGIN"/>
+		</jms:inbound-endpoint>
+		<logger message="ProcessCustomersFlow entered" level="INFO" />
+		<flow-ref name="PostToJMSFlow" />
+		<splitter evaluator="xpath" expression="/customerList/customer" />
+		<flow-ref name="InsertToDBFlow" />
+		<logger message="ProcessCustomersFlow completed" level="INFO" />
+		<default-exception-strategy>
+        	<rollback-transaction exception-pattern="*"/>
+	    </default-exception-strategy>
+	</flow>
+
+	<flow name="InsertToDBFlow">
+		<logger message="InsertToDBFlow entered" level="INFO" />
+		<component class="helloservice.Logger" />
+		<jdbc:outbound-endpoint queryKey="outboundInsertStatement" >
+			<xa-transaction action="ALWAYS_JOIN"/>
+		</jdbc:outbound-endpoint>		
+		<logger message="InsertToDBFlow completed" level="INFO" />
+	</flow>
+
+	<flow name="PostToJMSFlow">
+		<logger message="PostToJMSFlow entered" level="INFO" />
+		<component class="helloservice.Logger" />
+		<component class="helloservice.CSVProducer" />
+		<component class="helloservice.Logger" />
+		<jms:outbound-endpoint queue="customerIds.queue" exchange-pattern="one-way">
+			<xa-transaction action="ALWAYS_JOIN" />
+		</jms:outbound-endpoint>
+		<logger message="PostToJMSFlow completed" level="INFO" />
+		<script:transformer name="restorePayload">
+			<script:script engine="groovy">
+				<script:text>
+					return message.getOutboundProperty("originalPayload")
+				</script:text>
+			</script:script>
+		</script:transformer>
+	</flow>
+
+	<flow name="MainFlow">
+		<logger message="MainFlow entered" level="INFO" />
+		<log-component />
+		<jms:outbound-endpoint queue="processCustomers.queue" exchange-pattern="one-way" />
+		<logger message="MainFlow completed" level="INFO" />
+	</flow>
+	
+	<flow name="HttpProxyService">
+		<inbound-endpoint address="http://localhost:6789"
+			exchange-pattern="request-response" />
+		<logger message="HttpProxyService entered" level="INFO" />
+		<object-to-string-transformer />
+		<component class="helloservice.Logger" />
+		<wire-tap>
+			<processor-chain>
+				<message-property-filter pattern="http.method=POST"
+					scope="inbound" />
+				<mulexml:xslt-transformer name="incomingToCanonical"
+					doc:name="XSLT Transformer" doc:description="Transform XML using XSLT">
+					<mulexml:xslt-text>
+						<xsl:stylesheet version="2.0"
+							xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:cus="http://customerservice.example.com/">
+							<xsl:output method="xml" />
+							<xsl:template match="cus:updateCustomer">
+								<xsl:element name="customerList">
+									<xsl:apply-templates select="customer" />
+								</xsl:element>
+							</xsl:template>
+							<xsl:template match="customer">
+								<xsl:element name="customer">
+									<xsl:element name="id">
+										<xsl:value-of select="customerId" />
+									</xsl:element>
+									<xsl:element name="fullName">
+										<xsl:value-of select="name" />
+									</xsl:element>
+									<xsl:element name="postalAddress">
+										<xsl:value-of select="address" />
+									</xsl:element>
+								</xsl:element>
+							</xsl:template>
+						</xsl:stylesheet>
+					</mulexml:xslt-text>
+				</mulexml:xslt-transformer>
+				<byte-array-to-string-transformer />
+				<flow-ref name="MainFlow" />
+			</processor-chain>
+		</wire-tap>
+		<logger message="HttpProxyService after wiretap" level="INFO" />
+		<outbound-endpoint
+			address="http://localhost:6788#[header:INBOUND:http.request]"
+			exchange-pattern="request-response" />
+		<logger message="HttpProxyService after WebService" level="INFO" />
+		<log-component />
+	</flow>
+	
+	<flow name="WebService">
+		<inbound-endpoint address="http://localhost:6788/services/CustomerWS">
+			<cxf:jaxws-service serviceClass="helloservice.generated.CustomerService" />
+		</inbound-endpoint>
+		<logger message="WebService entered" level="INFO" />
+		<component class="helloservice.CustomerServiceImpl"
+			doc:name="Component" doc:description="Invoke a Java component" />
+		<logger message="WebService completed" level="INFO" />
+		<log-component />
+	</flow>
+	
+</mule>
